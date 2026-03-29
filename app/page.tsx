@@ -7,6 +7,23 @@ import MemoEditor from '@/components/MemoEditor'
 
 type View = 'home' | 'editor'
 
+function sortMemos(memos: Memo[], sortBy: SortBy): Memo[] {
+  return [...memos].sort((a, b) => {
+    // ピン留め優先
+    const pinA = a.is_pinned ? 1 : 0
+    const pinB = b.is_pinned ? 1 : 0
+    if (pinB !== pinA) return pinB - pinA
+
+    if (sortBy === 'custom') {
+      return (a.sort_order ?? 0) - (b.sort_order ?? 0)
+    }
+    if (sortBy === 'title') {
+      return (a.title || '').localeCompare(b.title || '', 'ja')
+    }
+    return new Date(b[sortBy]).getTime() - new Date(a[sortBy]).getTime()
+  })
+}
+
 export default function Home() {
   const [memos, setMemos] = useState<Memo[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -14,6 +31,7 @@ export default function Home() {
   const [view, setView] = useState<View>('home')
   const [deleteMode, setDeleteMode] = useState(false)
   const [pinMode, setPinMode] = useState(false)
+  const [sortMode, setSortMode] = useState(false)
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set())
   const [selectedForPin, setSelectedForPin] = useState<Set<string>>(new Set())
   const [undoData, setUndoData] = useState<Memo[] | null>(null)
@@ -43,20 +61,7 @@ export default function Home() {
 
     const { data } = await query
     if (data) {
-      // ピン留め優先 → sortByで並び替え
-      const sorted = [...data].sort((a, b) => {
-        // ピン留め優先
-        const pinA = a.is_pinned ? 1 : 0
-        const pinB = b.is_pinned ? 1 : 0
-        if (pinB !== pinA) return pinB - pinA
-
-        // sortByで並び替え
-        if (sortBy === 'title') {
-          return (a.title || '').localeCompare(b.title || '', 'ja')
-        }
-        return new Date(b[sortBy]).getTime() - new Date(a[sortBy]).getTime()
-      })
-      setMemos(sorted)
+      setMemos(sortMemos(data, sortBy))
     }
   }, [searchQuery, sortBy, selectedTag])
 
@@ -97,13 +102,7 @@ export default function Home() {
           ? { ...m, title, content, updated_at: new Date().toISOString() }
           : m
       )
-      return updated.sort((a, b) => {
-        const pinA = a.is_pinned ? 1 : 0
-        const pinB = b.is_pinned ? 1 : 0
-        if (pinB !== pinA) return pinB - pinA
-        if (sortBy === 'title') return (a.title || '').localeCompare(b.title || '', 'ja')
-        return new Date(b[sortBy]).getTime() - new Date(a[sortBy]).getTime()
-      })
+      return sortMemos(updated, sortBy)
     })
   }
 
@@ -118,20 +117,12 @@ export default function Home() {
   const handleUndo = async () => {
     if (!undoData) return
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-    const rows = undoData.map(({ id, title, content, created_at, updated_at, is_pinned, tags }) => ({
-      id, title, content, created_at, updated_at, is_pinned: is_pinned || false, tags: tags || [],
+    const rows = undoData.map(({ id, title, content, created_at, updated_at, is_pinned, tags, sort_order }) => ({
+      id, title, content, created_at, updated_at, is_pinned: is_pinned || false, tags: tags || [], sort_order: sort_order ?? 0,
     }))
     const { data } = await supabase.from('memos').insert(rows).select()
     if (data) {
-      setMemos((prev) =>
-        [...prev, ...data].sort((a, b) => {
-          const pinA = a.is_pinned ? 1 : 0
-          const pinB = b.is_pinned ? 1 : 0
-          if (pinB !== pinA) return pinB - pinA
-          if (sortBy === 'title') return (a.title || '').localeCompare(b.title || '', 'ja')
-          return new Date(b[sortBy]).getTime() - new Date(a[sortBy]).getTime()
-        })
-      )
+      setMemos((prev) => sortMemos([...prev, ...data], sortBy))
     }
     setUndoData(null)
   }
@@ -168,6 +159,7 @@ export default function Home() {
   const handleToggleDeleteMode = () => {
     setDeleteMode((prev) => !prev)
     setPinMode(false)
+    setSortMode(false)
     setSelectedForDelete(new Set())
   }
 
@@ -200,6 +192,7 @@ export default function Home() {
   const handleTogglePinMode = () => {
     setPinMode((prev) => !prev)
     setDeleteMode(false)
+    setSortMode(false)
     setSelectedForPin(new Set())
   }
 
@@ -216,7 +209,6 @@ export default function Home() {
     if (selectedForPin.size === 0) return
     const ids = Array.from(selectedForPin)
 
-    // 各メモのピン状態をトグル
     const updates = ids.map((id) => {
       const memo = memos.find((m) => m.id === id)
       return { id, is_pinned: !(memo?.is_pinned) }
@@ -231,13 +223,7 @@ export default function Home() {
         const upd = updates.find((u) => u.id === m.id)
         return upd ? { ...m, is_pinned: upd.is_pinned } : m
       })
-      return updated.sort((a, b) => {
-        const pinA = a.is_pinned ? 1 : 0
-        const pinB = b.is_pinned ? 1 : 0
-        if (pinB !== pinA) return pinB - pinA
-        if (sortBy === 'title') return (a.title || '').localeCompare(b.title || '', 'ja')
-        return new Date(b[sortBy]).getTime() - new Date(a[sortBy]).getTime()
-      })
+      return sortMemos(updated, sortBy)
     })
     setSelectedForPin(new Set())
     setPinMode(false)
@@ -246,6 +232,39 @@ export default function Home() {
   // 並び替え
   const handleSortChange = (newSort: SortBy) => {
     setSortBy(newSort)
+  }
+
+  // カスタム並び替えモード
+  const handleToggleSortMode = () => {
+    setSortMode((prev) => !prev)
+    setDeleteMode(false)
+    setPinMode(false)
+  }
+
+  const handleMoveUp = async (id: string) => {
+    const index = memos.findIndex((m) => m.id === id)
+    if (index <= 0) return
+    const newMemos = [...memos]
+    ;[newMemos[index - 1], newMemos[index]] = [newMemos[index], newMemos[index - 1]]
+    // sort_orderを振り直し
+    const updated = newMemos.map((m, i) => ({ ...m, sort_order: i }))
+    setMemos(updated)
+    // DB更新
+    for (const m of updated) {
+      await supabase.from('memos').update({ sort_order: m.sort_order }).eq('id', m.id)
+    }
+  }
+
+  const handleMoveDown = async (id: string) => {
+    const index = memos.findIndex((m) => m.id === id)
+    if (index < 0 || index >= memos.length - 1) return
+    const newMemos = [...memos]
+    ;[newMemos[index], newMemos[index + 1]] = [newMemos[index + 1], newMemos[index]]
+    const updated = newMemos.map((m, i) => ({ ...m, sort_order: i }))
+    setMemos(updated)
+    for (const m of updated) {
+      await supabase.from('memos').update({ sort_order: m.sort_order }).eq('id', m.id)
+    }
   }
 
   // タグフィルタ
@@ -287,6 +306,7 @@ export default function Home() {
           searchQuery={searchQuery}
           deleteMode={deleteMode}
           pinMode={pinMode}
+          sortMode={sortMode}
           selectedForDelete={selectedForDelete}
           selectedForPin={selectedForPin}
           sortBy={sortBy}
@@ -303,6 +323,9 @@ export default function Home() {
           onTogglePinItem={handleTogglePinItem}
           onPinSelected={handlePinSelected}
           onSortChange={handleSortChange}
+          onToggleSortMode={handleToggleSortMode}
+          onMoveUp={handleMoveUp}
+          onMoveDown={handleMoveDown}
           onTagFilter={handleTagFilter}
           onFontSizeChange={handleFontSizeChange}
           onAddTag={handleAddTag}

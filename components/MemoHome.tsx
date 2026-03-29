@@ -10,6 +10,7 @@ type Props = {
   searchQuery: string
   deleteMode: boolean
   pinMode: boolean
+  sortMode: boolean
   selectedForDelete: Set<string>
   selectedForPin: Set<string>
   sortBy: SortBy
@@ -26,6 +27,9 @@ type Props = {
   onTogglePinItem: (id: string) => void
   onPinSelected: () => void
   onSortChange: (sortBy: SortBy) => void
+  onToggleSortMode: () => void
+  onMoveUp: (id: string) => void
+  onMoveDown: (id: string) => void
   onTagFilter: (tag: string | null) => void
   onFontSizeChange: (size: number) => void
   onAddTag: (memoId: string, tag: string) => void
@@ -40,6 +44,7 @@ export default function MemoHome({
   searchQuery,
   deleteMode,
   pinMode,
+  sortMode,
   selectedForDelete,
   selectedForPin,
   sortBy,
@@ -56,6 +61,9 @@ export default function MemoHome({
   onTogglePinItem,
   onPinSelected,
   onSortChange,
+  onToggleSortMode,
+  onMoveUp,
+  onMoveDown,
   onTagFilter,
   onFontSizeChange,
   onAddTag,
@@ -140,10 +148,17 @@ export default function MemoHome({
     handleMenuClose()
   }
 
+  const handleSortCustom = () => {
+    onSortChange('custom')
+    handleMenuClose()
+    onToggleSortMode()
+  }
+
   const sortLabels: Record<SortBy, string> = {
     updated_at: '更新日順',
     created_at: '作成日順',
     title: 'タイトル順',
+    custom: 'カスタム',
   }
 
   const fontSizeOptions = [
@@ -153,7 +168,7 @@ export default function MemoHome({
     { value: 20, label: '特大' },
   ]
 
-  const isSelectionMode = deleteMode || pinMode
+  const isSelectionMode = deleteMode || pinMode || sortMode
 
   return (
     <div className="flex flex-col h-full bg-[#F5F0E8]">
@@ -300,6 +315,19 @@ export default function MemoHome({
                     <span className={sortBy !== s ? 'ml-7' : ''}>{sortLabels[s]}</span>
                   </button>
                 ))}
+                <button
+                  onClick={handleSortCustom}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                    sortBy === 'custom' ? 'text-[#57873E] bg-[#F5F0E8] font-bold' : 'text-[#57873E]/70 hover:bg-[#F5F0E8]'
+                  }`}
+                >
+                  {sortBy === 'custom' && (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                  <span className={sortBy !== 'custom' ? 'ml-7' : ''}>カスタム（手動）</span>
+                </button>
               </div>
             )}
 
@@ -467,6 +495,16 @@ export default function MemoHome({
         </>
       )}
 
+      {/* 並び替えモードヘッダー */}
+      {sortMode && (
+        <div className="px-4 py-2 bg-[#A3C57D]/20 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-[#57873E]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h12M3 17h6" />
+          </svg>
+          <span className="text-xs text-[#57873E]">矢印ボタンでメモの順番を変更</span>
+        </div>
+      )}
+
       {/* ピン留めモードヘッダー */}
       {pinMode && (
         <div className="px-4 py-2 bg-[#A3C57D]/20 flex items-center gap-2">
@@ -485,20 +523,50 @@ export default function MemoHome({
           </div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
-            {memos.map((memo) => (
-              <MemoItem
-                key={memo.id}
-                memo={memo}
-                isSelected={memo.id === selectedId}
-                onClick={() => onSelect(memo.id)}
-                deleteMode={deleteMode}
-                pinMode={pinMode}
-                isChecked={deleteMode ? selectedForDelete.has(memo.id) : selectedForPin.has(memo.id)}
-                onToggleCheck={() => {
-                  if (deleteMode) onToggleDeleteItem(memo.id)
-                  else if (pinMode) onTogglePinItem(memo.id)
-                }}
-              />
+            {memos.map((memo, index) => (
+              <div key={memo.id} className="flex items-center gap-1">
+                {sortMode && (
+                  <div className="flex flex-col gap-0.5 flex-shrink-0">
+                    <button
+                      onClick={() => onMoveUp(memo.id)}
+                      disabled={index === 0}
+                      className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+                        index === 0 ? 'text-[#57873E]/20' : 'text-[#57873E] hover:bg-[#57873E]/10 active:bg-[#57873E]/20'
+                      }`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => onMoveDown(memo.id)}
+                      disabled={index === memos.length - 1}
+                      className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+                        index === memos.length - 1 ? 'text-[#57873E]/20' : 'text-[#57873E] hover:bg-[#57873E]/10 active:bg-[#57873E]/20'
+                      }`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <MemoItem
+                    memo={memo}
+                    isSelected={memo.id === selectedId}
+                    onClick={() => onSelect(memo.id)}
+                    deleteMode={deleteMode}
+                    pinMode={pinMode}
+                    sortMode={sortMode}
+                    isChecked={deleteMode ? selectedForDelete.has(memo.id) : selectedForPin.has(memo.id)}
+                    onToggleCheck={() => {
+                      if (deleteMode) onToggleDeleteItem(memo.id)
+                      else if (pinMode) onTogglePinItem(memo.id)
+                    }}
+                  />
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -532,7 +600,7 @@ export default function MemoHome({
         )}
         {isSelectionMode ? (
           <button
-            onClick={deleteMode ? onToggleDeleteMode : onTogglePinMode}
+            onClick={deleteMode ? onToggleDeleteMode : pinMode ? onTogglePinMode : onToggleSortMode}
             className="w-14 h-14 flex items-center justify-center rounded-full bg-[#57873E] text-[#F5F0E8] shadow-lg hover:bg-[#456E30] transition-colors"
             title="キャンセル"
           >

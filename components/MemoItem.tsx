@@ -8,11 +8,12 @@ type Props = {
   onClick: () => void
   deleteMode?: boolean
   pinMode?: boolean
+  sortMode?: boolean
   isChecked?: boolean
   onToggleCheck?: () => void
 }
 
-export default function MemoItem({ memo, isSelected, onClick, deleteMode, pinMode, isChecked, onToggleCheck }: Props) {
+export default function MemoItem({ memo, isSelected, onClick, deleteMode, pinMode, sortMode, isChecked, onToggleCheck }: Props) {
   const date = new Date(memo.updated_at)
   const dateStr = date.toLocaleDateString('ja-JP', {
     year: 'numeric',
@@ -27,6 +28,7 @@ export default function MemoItem({ memo, isSelected, onClick, deleteMode, pinMod
   const isSelectionMode = deleteMode || pinMode
 
   const handleClick = () => {
+    if (sortMode) return
     if (isSelectionMode && onToggleCheck) {
       onToggleCheck()
     } else {

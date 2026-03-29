@@ -23,6 +23,7 @@ export type Memo = {
   updated_at: string
   is_pinned?: boolean
   tags?: string[]
+  sort_order?: number
 }
 
-export type SortBy = 'updated_at' | 'created_at' | 'title'
+export type SortBy = 'updated_at' | 'created_at' | 'title' | 'custom'
