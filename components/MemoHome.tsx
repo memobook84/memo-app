@@ -3,6 +3,7 @@
 import { Memo, SortBy } from '@/lib/supabase'
 import MemoItem from './MemoItem'
 import { useState } from 'react'
+import Image from 'next/image'
 
 type Props = {
   memos: Memo[]
@@ -175,7 +176,7 @@ export default function MemoHome({
       {/* Header */}
       <div className="bg-[#F5F0E8] px-4 py-1">
         <div className="flex items-center justify-between">
-          <img src="/logo.png" alt="Logo" className="w-20 h-20 rounded-full" />
+          <Image src="/logo.png" alt="Logo" width={64} height={64} priority className="rounded-full" />
           <div className="flex-1" />
           <div className="flex items-center gap-2">
             {/* タグフィルタ表示 */}

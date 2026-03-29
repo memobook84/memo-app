@@ -200,6 +200,31 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
     }
   }
 
+  const handleSelectAll = async () => {
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopyFeedback(true)
+      setTimeout(() => {
+        setCopyFeedback(false)
+        setMode('edit')
+        resetSelection()
+      }, 800)
+    } catch {
+      const textarea = document.createElement('textarea')
+      textarea.value = content
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+      setCopyFeedback(true)
+      setTimeout(() => {
+        setCopyFeedback(false)
+        setMode('edit')
+        resetSelection()
+      }, 800)
+    }
+  }
+
   const isHighlighted = (index: number) => {
     if (startIndex === null || endIndex === null) return false
     return index >= startIndex && index <= endIndex
@@ -381,16 +406,27 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
             </div>
           )}
           {startIndex === null && (
-            <p className="mt-4 text-sm text-[#57873E]/40 flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded bg-[#3D8B8A]"></span>
-              <span>テキストをタップして開始位置を選択</span>
-            </p>
+            <div className="mt-4 flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 text-sm text-[#3D8B8A]">
+                <span className="inline-block w-2.5 h-2.5 bg-[#3D8B8A]"></span>
+                テキストをタップして開始位置を選択
+              </span>
+              <span className="w-px h-4 bg-[#57873E]/30"></span>
+              <span
+                onClick={handleSelectAll}
+                className="text-sm text-[#57873E] cursor-pointer hover:text-[#57873E]/70 transition-colors"
+              >
+                {copyFeedback ? 'コピー済' : '全選択'}
+              </span>
+            </div>
           )}
           {startIndex !== null && endIndex === null && (
-            <p className="mt-4 text-sm text-[#57873E]/40 flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded bg-[#C48A4A]"></span>
-              <span>終了位置をタップして範囲を確定</span>
-            </p>
+            <div className="mt-4">
+              <span className="inline-flex items-center gap-1.5 text-sm text-[#C48A4A]">
+                <span className="inline-block w-2.5 h-2.5 bg-[#C48A4A]"></span>
+                終了位置をタップして範囲を確定
+              </span>
+            </div>
           )}
         </div>
       )}

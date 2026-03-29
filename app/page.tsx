@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase, Memo, SortBy } from '@/lib/supabase'
 import MemoHome from '@/components/MemoHome'
-import MemoEditor from '@/components/MemoEditor'
+import dynamic from 'next/dynamic'
+const MemoEditor = dynamic(() => import('@/components/MemoEditor'))
 
 type View = 'home' | 'editor'
 
