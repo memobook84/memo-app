@@ -1,15 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import { Zen_Maru_Gothic, Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const zenMaru = Zen_Maru_Gothic({
+  weight: ["400", "500", "700"],
   subsets: ["latin"],
+  variable: "--font-zen-maru",
+});
+
+const notoSans = Noto_Sans_JP({
+  weight: ["400", "500", "700"],
+  subsets: ["latin"],
+  variable: "--font-noto-sans",
 });
 
 export const viewport: Viewport = {
-  themeColor: "#3b82f6",
+  themeColor: "#57873E",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -33,8 +40,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja" className={`${geistSans.variable} h-full`}>
-      <body className="h-full font-[family-name:var(--font-geist-sans)]">
+    <html lang="ja" className={`${zenMaru.variable} ${notoSans.variable} h-full`}>
+      <body className="h-full font-[family-name:var(--font-zen-maru)]">
         <ServiceWorkerRegister />
         {children}
       </body>

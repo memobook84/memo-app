@@ -21,4 +21,8 @@ export type Memo = {
   content: string
   created_at: string
   updated_at: string
+  is_pinned?: boolean
+  tags?: string[]
 }
+
+export type SortBy = 'updated_at' | 'created_at' | 'title'
