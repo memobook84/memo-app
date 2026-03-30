@@ -169,16 +169,15 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
     }
   }, [startIndex, endIndex, dragging, content.length])
 
-  // ドラッグでブロック移動
+  // ドラッグでブロック移動（高速化: elementFromPoint + data属性 + RAF）
   const getCharIndexFromPoint = useCallback((x: number, y: number): number | null => {
-    for (let i = 0; i < charRefs.current.length; i++) {
-      const el = charRefs.current[i]
-      if (!el) continue
-      const rect = el.getBoundingClientRect()
-      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-        return i
-      }
-    }
+    const el = document.elementFromPoint(x, y) as HTMLElement | null
+    if (!el) return null
+    const idx = el.dataset?.charIdx
+    if (idx !== undefined) return Number(idx)
+    // 親要素もチェック
+    const parent = el.parentElement
+    if (parent?.dataset?.charIdx !== undefined) return Number(parent.dataset.charIdx)
     return null
   }, [])
 
@@ -194,19 +193,31 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
     setDragging(handle)
   }, [])
 
-  const handlePointerMove = useCallback((x: number, y: number) => {
-    if (!dragging) return
-    const idx = getCharIndexFromPoint(x, y)
-    if (idx === null) return
+  const rafRef = useRef<number | null>(null)
+  const draggingRef = useRef(dragging)
+  const startRef = useRef(startIndex)
+  const endRef = useRef(endIndex)
+  draggingRef.current = dragging
+  startRef.current = startIndex
+  endRef.current = endIndex
 
-    if (dragging === 'start') {
-      if (endIndex !== null && idx >= endIndex) return
-      setStartIndex(idx)
-    } else {
-      if (startIndex !== null && idx <= startIndex) return
-      setEndIndex(idx)
-    }
-  }, [dragging, startIndex, endIndex, getCharIndexFromPoint])
+  const handlePointerMove = useCallback((x: number, y: number) => {
+    if (!draggingRef.current) return
+    if (rafRef.current) return // 前のフレームがまだ処理中
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null
+      const idx = getCharIndexFromPoint(x, y)
+      if (idx === null) return
+
+      if (draggingRef.current === 'start') {
+        if (endRef.current !== null && idx >= endRef.current) return
+        setStartIndex(idx)
+      } else {
+        if (startRef.current !== null && idx <= startRef.current) return
+        setEndIndex(idx)
+      }
+    })
+  }, [getCharIndexFromPoint])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0]
@@ -443,7 +454,7 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
                 return (
                   <span
                     key={i}
-                    ref={(el) => { charRefs.current[i] = el }}
+                    data-char-idx={i}
                     onClick={() => handleCharClick(i)}
                     onTouchStart={isStart ? handleHandleTouchStart('start') : isEnd ? handleHandleTouchStart('end') : undefined}
                     onMouseDown={isStart ? handleHandleMouseDown('start') : isEnd ? handleHandleMouseDown('end') : undefined}
