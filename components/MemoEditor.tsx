@@ -75,10 +75,12 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
   const [startIndex, setStartIndex] = useState<number | null>(null)
   const [endIndex, setEndIndex] = useState<number | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
+  const [dragging, setDragging] = useState<'start' | 'end' | null>(null)
   const [, forceUpdate] = useState(0) // undo/redoボタンの再描画用
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const memoIdRef = useRef<string | null>(null)
   const undoMgr = useRef(new UndoManager())
+  const charRefs = useRef<(HTMLSpanElement | null)[]>([])
 
   // メモIDが変わった時だけ初期化（内容更新では履歴をリセットしない）
   const memoId = memo?.id ?? null
@@ -148,30 +150,76 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
     }
   }
 
+  // タップ → その位置に開始・終了ブロック両方出現
   const handleCharClick = useCallback((index: number) => {
-    if (startIndex === null) {
-      setStartIndex(index)
-      setEndIndex(null)
-      setCopyFeedback(false)
-    } else if (endIndex === null) {
-      if (index === startIndex) {
+    if (dragging) return
+    if (startIndex !== null && endIndex !== null) {
+      // 既に選択中 → 範囲外タップで解除、範囲内タップは無視
+      if (index < startIndex || index > endIndex) {
         setStartIndex(null)
+        setEndIndex(null)
         setCopyFeedback(false)
-      } else if (index < startIndex) {
-        setEndIndex(startIndex)
-        setStartIndex(index)
-      } else {
-        setEndIndex(index)
       }
-    } else if (index === endIndex) {
-      setEndIndex(null)
-      setCopyFeedback(false)
     } else {
+      // 未選択 → タップ位置に開始・終了を両方セット（1文字選択状態）
+      const end = Math.min(index + 1, content.length - 1)
       setStartIndex(index)
-      setEndIndex(null)
+      setEndIndex(end)
       setCopyFeedback(false)
     }
-  }, [startIndex, endIndex])
+  }, [startIndex, endIndex, dragging, content.length])
+
+  // ドラッグでブロック移動
+  const getCharIndexFromPoint = useCallback((x: number, y: number): number | null => {
+    for (let i = 0; i < charRefs.current.length; i++) {
+      const el = charRefs.current[i]
+      if (!el) continue
+      const rect = el.getBoundingClientRect()
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        return i
+      }
+    }
+    return null
+  }, [])
+
+  const handleHandleTouchStart = useCallback((handle: 'start' | 'end') => (e: React.TouchEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragging(handle)
+  }, [])
+
+  const handleHandleMouseDown = useCallback((handle: 'start' | 'end') => (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragging(handle)
+  }, [])
+
+  const handlePointerMove = useCallback((x: number, y: number) => {
+    if (!dragging) return
+    const idx = getCharIndexFromPoint(x, y)
+    if (idx === null) return
+
+    if (dragging === 'start') {
+      if (endIndex !== null && idx >= endIndex) return
+      setStartIndex(idx)
+    } else {
+      if (startIndex !== null && idx <= startIndex) return
+      setEndIndex(idx)
+    }
+  }, [dragging, startIndex, endIndex, getCharIndexFromPoint])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0]
+    handlePointerMove(touch.clientX, touch.clientY)
+  }, [handlePointerMove])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    handlePointerMove(e.clientX, e.clientY)
+  }, [handlePointerMove])
+
+  const handlePointerEnd = useCallback(() => {
+    setDragging(null)
+  }, [])
 
   const handleCopy = async () => {
     if (startIndex === null || endIndex === null) return
@@ -375,28 +423,38 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
 
       {/* Content - 選択モード */}
       {mode === 'select' && (
-        <div className="flex-1 px-6 py-4 overflow-y-auto">
+        <div
+          className="flex-1 px-6 py-4 overflow-y-auto"
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handlePointerEnd}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handlePointerEnd}
+          onMouseLeave={handlePointerEnd}
+        >
           {content.length === 0 ? (
             <p className="text-[#57873E]/30">テキストがありません</p>
           ) : (
             <div className="text-[#57873E] leading-relaxed select-none whitespace-pre-wrap break-words" style={{ fontSize }}>
               {content.split('').map((char, i) => {
-                const isStart = i === startIndex
-                const isEnd = i === endIndex
+                const isStart = i === startIndex && endIndex !== null
+                const isEnd = i === endIndex && startIndex !== null
                 const highlighted = isHighlighted(i)
 
                 return (
                   <span
                     key={i}
+                    ref={(el) => { charRefs.current[i] = el }}
                     onClick={() => handleCharClick(i)}
-                    className={`cursor-pointer transition-colors duration-150 ${
+                    onTouchStart={isStart ? handleHandleTouchStart('start') : isEnd ? handleHandleTouchStart('end') : undefined}
+                    onMouseDown={isStart ? handleHandleMouseDown('start') : isEnd ? handleHandleMouseDown('end') : undefined}
+                    className={`cursor-pointer relative ${
                       isStart
-                        ? 'bg-[#3D8B8A] text-white font-bold rounded px-[2px]'
+                        ? 'bg-[#3D8B8A] text-white rounded-l touch-none'
                         : isEnd
-                          ? 'bg-[#C48A4A] text-white font-bold rounded px-[2px]'
+                          ? 'bg-[#C48A4A] text-white rounded-r touch-none'
                           : highlighted
-                            ? 'bg-[#A3C57D]/30 rounded-sm'
-                            : 'hover:bg-[#57873E]/10'
+                            ? 'bg-[#A3C57D]/30'
+                            : ''
                     }`}
                   >
                     {char}
@@ -405,30 +463,20 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
               })}
             </div>
           )}
-          {startIndex === null && (
-            <div className="mt-4 flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 text-sm text-[#3D8B8A]">
-                <span className="inline-block w-2.5 h-2.5 bg-[#3D8B8A]"></span>
-                テキストをタップして開始位置を選択
-              </span>
-              <span className="w-px h-4 bg-[#57873E]/30"></span>
-              <span
-                onClick={handleSelectAll}
-                className="text-sm text-[#57873E] cursor-pointer hover:text-[#57873E]/70 transition-colors"
-              >
-                {copyFeedback ? 'コピー済' : '全選択'}
-              </span>
-            </div>
-          )}
-          {startIndex !== null && endIndex === null && (
-            <div className="mt-4">
-              <span className="inline-flex items-center gap-1.5 text-sm text-[#C48A4A]">
-                <span className="inline-block w-2.5 h-2.5 bg-[#C48A4A]"></span>
-                終了位置をタップして範囲を確定
-              </span>
-            </div>
-          )}
         </div>
+      )}
+
+      {/* 選択モード時の下部ボタン */}
+      {mode === 'select' && content.length > 0 && startIndex === null && (
+        <button
+          onClick={() => {
+            setStartIndex(0)
+            setEndIndex(content.length - 1)
+          }}
+          className="fixed bottom-8 left-1/2 -translate-x-1/2 text-sm px-5 py-2.5 rounded-full bg-[#57873E]/70 text-white shadow-lg active:bg-[#456E30] transition-colors z-10 backdrop-blur-sm"
+        >
+          全選択
+        </button>
       )}
     </div>
   )

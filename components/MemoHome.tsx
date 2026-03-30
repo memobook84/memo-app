@@ -523,7 +523,7 @@ export default function MemoHome({
             {searchQuery ? '見つかりませんでした' : 'メモがありません'}
           </div>
         ) : (
-          <div className="px-12 py-3 flex flex-col gap-2">
+          <div className="px-12 py-3 flex flex-col gap-3">
             {memos.map((memo, index) => {
               // 日付ラベル：同日の最初のメモにだけ表示
               const date = new Date(memo.updated_at)
