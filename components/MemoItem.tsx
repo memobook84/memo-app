@@ -39,7 +39,7 @@ export default function MemoItem({ memo, isSelected, onClick, deleteMode, pinMod
   return (
     <button
       onClick={handleClick}
-      className="w-full text-left px-4 py-3 rounded-xl transition-colors flex items-center gap-3 bg-white hover:bg-white/80 active:bg-[#57873E]/10"
+      className="w-full text-left px-5 py-4 rounded-xl transition-colors flex items-center gap-3 bg-white hover:bg-white/80 active:bg-[#57873E]/10"
     >
       {isSelectionMode && (
         <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
@@ -61,7 +61,6 @@ export default function MemoItem({ memo, isSelected, onClick, deleteMode, pinMod
           <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
         </svg>
       )}
-      <span className="text-xs text-[#3D5A2E] flex-shrink-0">{dateStr}</span>
       <span className="text-sm text-[#2E4A1F] truncate">{firstLine}</span>
       {tags.length > 0 && (
         <div className="flex gap-1 flex-shrink-0">

@@ -523,52 +523,89 @@ export default function MemoHome({
             {searchQuery ? '見つかりませんでした' : 'メモがありません'}
           </div>
         ) : (
-          <div className="p-3 flex flex-col gap-2">
-            {memos.map((memo, index) => (
-              <div key={memo.id} className="flex items-center gap-1">
-                {sortMode && (
-                  <div className="flex flex-col gap-0.5 flex-shrink-0">
-                    <button
-                      onClick={() => onMoveUp(memo.id)}
-                      disabled={index === 0}
-                      className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
-                        index === 0 ? 'text-[#57873E]/20' : 'text-[#57873E] hover:bg-[#57873E]/10 active:bg-[#57873E]/20'
-                      }`}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => onMoveDown(memo.id)}
-                      disabled={index === memos.length - 1}
-                      className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
-                        index === memos.length - 1 ? 'text-[#57873E]/20' : 'text-[#57873E] hover:bg-[#57873E]/10 active:bg-[#57873E]/20'
-                      }`}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
+          <div className="px-12 py-3 flex flex-col gap-2">
+            {memos.map((memo, index) => {
+              // 日付ラベル：同日の最初のメモにだけ表示
+              const date = new Date(memo.updated_at)
+              const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+              const prevMemo = index > 0 ? memos[index - 1] : null
+              const prevDate = prevMemo ? new Date(prevMemo.updated_at) : null
+              const prevDateKey = prevDate ? `${prevDate.getFullYear()}-${prevDate.getMonth()}-${prevDate.getDate()}` : null
+              const showDateLabel = dateKey !== prevDateKey
+
+              const now = new Date()
+              const today = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`
+              const yesterday = new Date(now)
+              yesterday.setDate(yesterday.getDate() - 1)
+              const yesterdayKey = `${yesterday.getFullYear()}-${yesterday.getMonth()}-${yesterday.getDate()}`
+
+              let dateLabel = ''
+              if (showDateLabel) {
+                if (dateKey === today) {
+                  dateLabel = '今日'
+                } else if (dateKey === yesterdayKey) {
+                  dateLabel = '昨日'
+                } else {
+                  const sameYear = date.getFullYear() === now.getFullYear()
+                  dateLabel = sameYear
+                    ? `${date.getMonth() + 1}月${date.getDate()}日`
+                    : `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
+                }
+              }
+
+              return (
+                <div key={memo.id}>
+                  {showDateLabel && (
+                    <div className="text-sm text-[#57873E] pl-1 pb-1 pt-2">
+                      {dateLabel}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1">
+                    {sortMode && (
+                      <div className="flex flex-col gap-0.5 flex-shrink-0">
+                        <button
+                          onClick={() => onMoveUp(memo.id)}
+                          disabled={index === 0}
+                          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+                            index === 0 ? 'text-[#57873E]/20' : 'text-[#57873E] hover:bg-[#57873E]/10 active:bg-[#57873E]/20'
+                          }`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => onMoveDown(memo.id)}
+                          disabled={index === memos.length - 1}
+                          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+                            index === memos.length - 1 ? 'text-[#57873E]/20' : 'text-[#57873E] hover:bg-[#57873E]/10 active:bg-[#57873E]/20'
+                          }`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <MemoItem
+                        memo={memo}
+                        isSelected={memo.id === selectedId}
+                        onClick={() => onSelect(memo.id)}
+                        deleteMode={deleteMode}
+                        pinMode={pinMode}
+                        sortMode={sortMode}
+                        isChecked={deleteMode ? selectedForDelete.has(memo.id) : selectedForPin.has(memo.id)}
+                        onToggleCheck={() => {
+                          if (deleteMode) onToggleDeleteItem(memo.id)
+                          else if (pinMode) onTogglePinItem(memo.id)
+                        }}
+                      />
+                    </div>
                   </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <MemoItem
-                    memo={memo}
-                    isSelected={memo.id === selectedId}
-                    onClick={() => onSelect(memo.id)}
-                    deleteMode={deleteMode}
-                    pinMode={pinMode}
-                    sortMode={sortMode}
-                    isChecked={deleteMode ? selectedForDelete.has(memo.id) : selectedForPin.has(memo.id)}
-                    onToggleCheck={() => {
-                      if (deleteMode) onToggleDeleteItem(memo.id)
-                      else if (pinMode) onTogglePinItem(memo.id)
-                    }}
-                  />
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
