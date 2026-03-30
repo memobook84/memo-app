@@ -199,6 +199,8 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
   }, [])
 
   const rafRef = useRef<number | null>(null)
+  const scrollRafRef = useRef<number | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const draggingRef = useRef(dragging)
   const startRef = useRef(startIndex)
   const endRef = useRef(endIndex)
@@ -206,9 +208,30 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
   startRef.current = startIndex
   endRef.current = endIndex
 
+  // ドラッグ中の自動スクロール
+  const autoScroll = useCallback((y: number) => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    const edgeSize = 60 // 端からこのpx以内で自動スクロール
+    const speed = 8
+
+    if (y < rect.top + edgeSize) {
+      // 上方向スクロール
+      container.scrollTop -= speed
+    } else if (y > rect.bottom - edgeSize) {
+      // 下方向スクロール
+      container.scrollTop += speed
+    }
+  }, [])
+
   const handlePointerMove = useCallback((x: number, y: number) => {
     if (!draggingRef.current) return
-    if (rafRef.current) return // 前のフレームがまだ処理中
+
+    // 自動スクロール
+    autoScroll(y)
+
+    if (rafRef.current) return
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null
       const idx = getCharIndexFromPoint(x, y)
@@ -222,7 +245,7 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
         setEndIndex(idx)
       }
     })
-  }, [getCharIndexFromPoint])
+  }, [getCharIndexFromPoint, autoScroll])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0]
@@ -443,6 +466,7 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
       {/* Content - 選択モード */}
       {mode === 'select' && (
         <div
+          ref={scrollContainerRef}
           className="flex-1 px-6 py-4 overflow-y-auto"
           onTouchMove={handleTouchMove}
           onTouchEnd={handlePointerEnd}
