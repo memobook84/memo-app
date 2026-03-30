@@ -76,6 +76,7 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
   const [endIndex, setEndIndex] = useState<number | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [dragging, setDragging] = useState<'start' | 'end' | null>(null)
+  const justDragged = useRef(false)
   const [, forceUpdate] = useState(0) // undo/redoボタンの再描画用
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const memoIdRef = useRef<string | null>(null)
@@ -153,6 +154,10 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
   // タップ → その位置に開始・終了ブロック両方出現
   const handleCharClick = useCallback((index: number) => {
     if (dragging) return
+    if (justDragged.current) {
+      justDragged.current = false
+      return
+    }
     if (startIndex !== null && endIndex !== null) {
       // 既に選択中 → 範囲外タップで解除、範囲内タップは無視
       if (index < startIndex || index > endIndex) {
@@ -229,6 +234,9 @@ export default function MemoEditor({ memo, fontSize, onUpdate, onBack }: Props) 
   }, [handlePointerMove])
 
   const handlePointerEnd = useCallback(() => {
+    if (draggingRef.current) {
+      justDragged.current = true
+    }
     setDragging(null)
   }, [])
 
