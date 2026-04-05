@@ -1,27 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { supabase, Memo, SortBy } from '@/lib/supabase'
+import { supabase, Memo, Collection } from '@/lib/supabase'
 import MemoHome from '@/components/MemoHome'
 import dynamic from 'next/dynamic'
 const MemoEditor = dynamic(() => import('@/components/MemoEditor'))
 
 type View = 'home' | 'editor'
 
-function sortMemos(memos: Memo[], sortBy: SortBy): Memo[] {
+function sortMemos(memos: Memo[]): Memo[] {
   return [...memos].sort((a, b) => {
-    // ピン留め優先
-    const pinA = a.is_pinned ? 1 : 0
-    const pinB = b.is_pinned ? 1 : 0
-    if (pinB !== pinA) return pinB - pinA
-
-    if (sortBy === 'custom') {
-      return (a.sort_order ?? 0) - (b.sort_order ?? 0)
-    }
-    if (sortBy === 'title') {
-      return (a.title || '').localeCompare(b.title || '', 'ja')
-    }
-    return new Date(b[sortBy]).getTime() - new Date(a[sortBy]).getTime()
+    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
   })
 }
 
@@ -31,20 +20,26 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('')
   const [view, setView] = useState<View>('home')
   const [deleteMode, setDeleteMode] = useState(false)
-  const [pinMode, setPinMode] = useState(false)
-  const [sortMode, setSortMode] = useState(false)
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set())
-  const [selectedForPin, setSelectedForPin] = useState<Set<string>>(new Set())
   const [undoData, setUndoData] = useState<Memo[] | null>(null)
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [sortBy, setSortBy] = useState<SortBy>('updated_at')
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [fontSize, setFontSize] = useState(16)
+  const [collections, setCollections] = useState<Collection[]>([])
+  const [selectedCollection, setSelectedCollection] = useState<string | null>(null)
 
   // localStorage からフォントサイズ読み込み
   useEffect(() => {
     const saved = localStorage.getItem('memo-app-font-size')
     if (saved) setFontSize(Number(saved))
+  }, [])
+
+  const fetchCollections = useCallback(async () => {
+    const { data } = await supabase
+      .from('collections')
+      .select('*')
+      .order('sort_order', { ascending: true })
+    if (data) setCollections(data)
   }, [])
 
   const fetchMemos = useCallback(async () => {
@@ -60,11 +55,19 @@ export default function Home() {
       query = query.contains('tags', [selectedTag])
     }
 
+    if (selectedCollection) {
+      query = query.contains('collection_ids', [selectedCollection])
+    }
+
     const { data } = await query
     if (data) {
-      setMemos(sortMemos(data, sortBy))
+      setMemos(sortMemos(data))
     }
-  }, [searchQuery, sortBy, selectedTag])
+  }, [searchQuery, selectedTag, selectedCollection])
+
+  useEffect(() => {
+    fetchCollections()
+  }, [fetchCollections])
 
   useEffect(() => {
     fetchMemos()
@@ -103,7 +106,7 @@ export default function Home() {
           ? { ...m, title, content, updated_at: new Date().toISOString() }
           : m
       )
-      return sortMemos(updated, sortBy)
+      return sortMemos(updated)
     })
   }
 
@@ -118,12 +121,12 @@ export default function Home() {
   const handleUndo = async () => {
     if (!undoData) return
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-    const rows = undoData.map(({ id, title, content, created_at, updated_at, is_pinned, tags, sort_order }) => ({
-      id, title, content, created_at, updated_at, is_pinned: is_pinned || false, tags: tags || [], sort_order: sort_order ?? 0,
+    const rows = undoData.map(({ id, title, content, created_at, updated_at, is_pinned, tags, sort_order, collection_ids }) => ({
+      id, title, content, created_at, updated_at, is_pinned: is_pinned || false, tags: tags || [], sort_order: sort_order ?? 0, collection_ids: collection_ids || [],
     }))
     const { data } = await supabase.from('memos').insert(rows).select()
     if (data) {
-      setMemos((prev) => sortMemos([...prev, ...data], sortBy))
+      setMemos((prev) => sortMemos([...prev, ...data]))
     }
     setUndoData(null)
   }
@@ -159,8 +162,6 @@ export default function Home() {
   // 削除モード
   const handleToggleDeleteMode = () => {
     setDeleteMode((prev) => !prev)
-    setPinMode(false)
-    setSortMode(false)
     setSelectedForDelete(new Set())
   }
 
@@ -189,85 +190,6 @@ export default function Home() {
     if (targets.length > 0) showUndo(targets)
   }
 
-  // ピン留めモード
-  const handleTogglePinMode = () => {
-    setPinMode((prev) => !prev)
-    setDeleteMode(false)
-    setSortMode(false)
-    setSelectedForPin(new Set())
-  }
-
-  const handleTogglePinItem = (id: string) => {
-    setSelectedForPin((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  const handlePinSelected = async () => {
-    if (selectedForPin.size === 0) return
-    const ids = Array.from(selectedForPin)
-
-    const updates = ids.map((id) => {
-      const memo = memos.find((m) => m.id === id)
-      return { id, is_pinned: !(memo?.is_pinned) }
-    })
-
-    for (const u of updates) {
-      await supabase.from('memos').update({ is_pinned: u.is_pinned }).eq('id', u.id)
-    }
-
-    setMemos((prev) => {
-      const updated = prev.map((m) => {
-        const upd = updates.find((u) => u.id === m.id)
-        return upd ? { ...m, is_pinned: upd.is_pinned } : m
-      })
-      return sortMemos(updated, sortBy)
-    })
-    setSelectedForPin(new Set())
-    setPinMode(false)
-  }
-
-  // 並び替え
-  const handleSortChange = (newSort: SortBy) => {
-    setSortBy(newSort)
-  }
-
-  // カスタム並び替えモード
-  const handleToggleSortMode = () => {
-    setSortMode((prev) => !prev)
-    setDeleteMode(false)
-    setPinMode(false)
-  }
-
-  const handleMoveUp = async (id: string) => {
-    const index = memos.findIndex((m) => m.id === id)
-    if (index <= 0) return
-    const newMemos = [...memos]
-    ;[newMemos[index - 1], newMemos[index]] = [newMemos[index], newMemos[index - 1]]
-    // sort_orderを振り直し
-    const updated = newMemos.map((m, i) => ({ ...m, sort_order: i }))
-    setMemos(updated)
-    // DB更新
-    for (const m of updated) {
-      await supabase.from('memos').update({ sort_order: m.sort_order }).eq('id', m.id)
-    }
-  }
-
-  const handleMoveDown = async (id: string) => {
-    const index = memos.findIndex((m) => m.id === id)
-    if (index < 0 || index >= memos.length - 1) return
-    const newMemos = [...memos]
-    ;[newMemos[index], newMemos[index + 1]] = [newMemos[index + 1], newMemos[index]]
-    const updated = newMemos.map((m, i) => ({ ...m, sort_order: i }))
-    setMemos(updated)
-    for (const m of updated) {
-      await supabase.from('memos').update({ sort_order: m.sort_order }).eq('id', m.id)
-    }
-  }
-
   // タグフィルタ
   const handleTagFilter = (tag: string | null) => {
     setSelectedTag(tag)
@@ -277,6 +199,62 @@ export default function Home() {
   const handleFontSizeChange = (size: number) => {
     setFontSize(size)
     localStorage.setItem('memo-app-font-size', String(size))
+  }
+
+  // コレクション
+  const handleCreateCollection = async (name: string) => {
+    const maxOrder = collections.reduce((max, c) => Math.max(max, c.sort_order), 0)
+    const { data } = await supabase
+      .from('collections')
+      .insert({ name, sort_order: maxOrder + 1 })
+      .select()
+      .single()
+    if (data) setCollections((prev) => [...prev, data])
+  }
+
+  const handleRenameCollection = async (id: string, name: string) => {
+    await supabase.from('collections').update({ name }).eq('id', id)
+    setCollections((prev) => prev.map((c) => c.id === id ? { ...c, name } : c))
+  }
+
+  const handleDeleteCollection = async (id: string) => {
+    await supabase.from('collections').delete().eq('id', id)
+    setCollections((prev) => prev.filter((c) => c.id !== id))
+    if (selectedCollection === id) setSelectedCollection(null)
+    // メモからcollection_idsをクリーンアップ
+    const affected = memos.filter((m) => (m.collection_ids || []).includes(id))
+    for (const memo of affected) {
+      const newIds = (memo.collection_ids || []).filter((cid) => cid !== id)
+      await supabase.from('memos').update({ collection_ids: newIds }).eq('id', memo.id)
+    }
+    setMemos((prev) => prev.map((m) => {
+      if ((m.collection_ids || []).includes(id)) {
+        return { ...m, collection_ids: (m.collection_ids || []).filter((cid) => cid !== id) }
+      }
+      return m
+    }))
+  }
+
+  const handleAddToCollection = async (memoId: string, collectionId: string) => {
+    const memo = memos.find((m) => m.id === memoId)
+    if (!memo) return
+    const current = memo.collection_ids || []
+    if (current.includes(collectionId)) return
+    const newIds = [...current, collectionId]
+    await supabase.from('memos').update({ collection_ids: newIds }).eq('id', memoId)
+    setMemos((prev) => prev.map((m) => m.id === memoId ? { ...m, collection_ids: newIds } : m))
+  }
+
+  const handleRemoveFromCollection = async (memoId: string, collectionId: string) => {
+    const memo = memos.find((m) => m.id === memoId)
+    if (!memo) return
+    const newIds = (memo.collection_ids || []).filter((cid) => cid !== collectionId)
+    await supabase.from('memos').update({ collection_ids: newIds }).eq('id', memoId)
+    setMemos((prev) => prev.map((m) => m.id === memoId ? { ...m, collection_ids: newIds } : m))
+  }
+
+  const handleCollectionFilter = (collectionId: string | null) => {
+    setSelectedCollection(collectionId)
   }
 
   // タグ追加/削除
@@ -306,31 +284,28 @@ export default function Home() {
           selectedId={selectedId}
           searchQuery={searchQuery}
           deleteMode={deleteMode}
-          pinMode={pinMode}
-          sortMode={sortMode}
           selectedForDelete={selectedForDelete}
-          selectedForPin={selectedForPin}
-          sortBy={sortBy}
           selectedTag={selectedTag}
           allTags={allTags}
           fontSize={fontSize}
+          collections={collections}
+          selectedCollection={selectedCollection}
           onSelect={handleSelect}
           onNew={handleNew}
           onSearchChange={setSearchQuery}
           onToggleDeleteMode={handleToggleDeleteMode}
           onToggleDeleteItem={handleToggleDeleteItem}
           onDeleteSelected={handleDeleteSelected}
-          onTogglePinMode={handleTogglePinMode}
-          onTogglePinItem={handleTogglePinItem}
-          onPinSelected={handlePinSelected}
-          onSortChange={handleSortChange}
-          onToggleSortMode={handleToggleSortMode}
-          onMoveUp={handleMoveUp}
-          onMoveDown={handleMoveDown}
           onTagFilter={handleTagFilter}
           onFontSizeChange={handleFontSizeChange}
           onAddTag={handleAddTag}
           onRemoveTag={handleRemoveTag}
+          onCreateCollection={handleCreateCollection}
+          onRenameCollection={handleRenameCollection}
+          onDeleteCollection={handleDeleteCollection}
+          onAddToCollection={handleAddToCollection}
+          onRemoveFromCollection={handleRemoveFromCollection}
+          onCollectionFilter={handleCollectionFilter}
         />
       ) : (
         <MemoEditor

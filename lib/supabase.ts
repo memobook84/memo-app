@@ -24,6 +24,14 @@ export type Memo = {
   is_pinned?: boolean
   tags?: string[]
   sort_order?: number
+  collection_ids?: string[]
+}
+
+export type Collection = {
+  id: string
+  name: string
+  sort_order: number
+  created_at: string
 }
 
 export type SortBy = 'updated_at' | 'created_at' | 'title' | 'custom'

@@ -1,7 +1,7 @@
 {
-  "name": "メモアプリ",
-  "short_name": "メモ",
-  "description": "シンプルなメモアプリ",
+  "name": "ケロメモ",
+  "short_name": "ケロメモ",
+  "description": "ケロメモ - シンプルなメモアプリ",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F5F0E8",

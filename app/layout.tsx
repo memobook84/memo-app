@@ -18,13 +18,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "メモアプリ",
-  description: "シンプルなメモアプリ",
+  title: "ケロメモ",
+  description: "ケロメモ - シンプルなメモアプリ",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "メモ",
+    title: "ケロメモ",
   },
   icons: {
     icon: "/icon.png",
